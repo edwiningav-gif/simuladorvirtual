@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de Admisión</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Idea de diseño: hoja de examen con cuadernillo azul tinta; una pregunta por pantalla, hoja de respuestas arriba. */
+:root{
+  --bg:#eef1f7; --card:#ffffff; --ink:#16203a; --muted:#5b6785; --line:#d5dbe9;
+  --accent:#1f47c7; --accent-ink:#ffffff; --accent-soft:#e4ebff;
+  --verbal:#7b3fb8; --abstracto:#c2540c; --numerico:#0e7a6e;
+  --good:#17803d; --good-soft:#e2f5e9; --bad:#b4281f; --bad-soft:#fde8e6; --warn:#b45309;
+  --paper:#ffffff;
+  --font-body:'Public Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-read:'Source Serif 4',Georgia,'Times New Roman',serif;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1527; --card:#182038; --ink:#e8ecf8; --muted:#9aa6c5; --line:#2c3757;
+    --accent:#7f9cff; --accent-ink:#0b1230; --accent-soft:#222e57;
+    --verbal:#c79bf2; --abstracto:#ff9a5c; --numerico:#4fd1be;
+    --good:#58d38a; --good-soft:#143324; --bad:#ff8b80; --bad-soft:#3a1b1b; --warn:#f5b04c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1527; --card:#182038; --ink:#e8ecf8; --muted:#9aa6c5; --line:#2c3757;
+  --accent:#7f9cff; --accent-ink:#0b1230; --accent-soft:#222e57;
+  --verbal:#c79bf2; --abstracto:#ff9a5c; --numerico:#4fd1be;
+  --good:#58d38a; --good-soft:#143324; --bad:#ff8b80; --bad-soft:#3a1b1b; --warn:#f5b04c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{text-wrap:balance;line-height:1.15;margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 64px}
+.hidden{display:none!important}
+
+/* barra superior */
+.brand{display:flex;align-items:center;gap:10px;padding:6px 0 18px;font-weight:700;letter-spacing:.01em}
+.brand .mark{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;font-size:15px}
+.brand small{display:block;font-weight:500;color:var(--muted);font-size:12px;letter-spacing:.02em}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+.btn{border:1.5px solid var(--line);background:var(--card);border-radius:10px;padding:11px 18px;font-weight:600;min-height:44px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* inicio */
+.hero h1{font-size:clamp(28px,5vw,40px);font-weight:800;letter-spacing:-.015em}
+.hero p.lead{color:var(--muted);max-width:60ch;margin:12px 0 0;font-size:17px}
+.areas{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:24px 0}
+.area{border:1px solid var(--line);border-left:5px solid var(--c);border-radius:12px;padding:14px 16px;background:var(--card)}
+.area h3{font-size:16px;color:var(--c)}
+.area p{margin:6px 0 0;font-size:14px;color:var(--muted)}
+.area .n{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.facts{display:flex;flex-wrap:wrap;gap:8px 22px;margin:0 0 20px;padding:0;list-style:none;color:var(--muted);font-size:14px}
+.facts b{color:var(--ink);font-variant-numeric:tabular-nums}
+.start-row{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center}
+.check{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:14px}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+.hist{margin-top:28px}
+.hist h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin-bottom:10px}
+.hist table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.hist th,.hist td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
+.hist th{color:var(--muted);font-weight:600;font-size:12px}
+.hist-wrap{overflow-x:auto}
+
+/* examen */
+.topbar{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0 12px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.topbar .att{font-weight:700}
+.sheet{display:flex;gap:8px;align-items:center}
+.sheet .lbl{font-size:12px;color:var(--muted);margin-right:2px}
+.bubble{width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:var(--card);font-weight:700;font-size:14px;display:grid;place-items:center;font-variant-numeric:tabular-nums;padding:0}
+.bubble.done{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.bubble.cur{box-shadow:0 0 0 3px var(--accent-soft);border-color:var(--accent)}
+.timer{font-variant-numeric:tabular-nums;font-weight:700;font-size:18px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);min-width:84px;text-align:center}
+.timer.low{color:var(--warn);border-color:var(--warn)}
+.timer.crit{color:var(--bad);border-color:var(--bad)}
+.qhead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;margin-bottom:14px}
+.tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--c);border:1.5px solid var(--c);border-radius:999px;padding:3px 11px}
+.qnum{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.stem{font-size:18px;margin:0 0 6px;font-weight:500}
+.passage{font-family:var(--font-read);font-size:18px;line-height:1.65;background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:8px;padding:14px 18px;margin:0 0 14px;max-width:70ch}
+.ask{font-size:18px;font-weight:600;margin:0 0 6px}
+.base{font-family:var(--font-read);font-size:19px;line-height:1.6;margin-top:10px;padding:12px 16px;background:var(--accent-soft);border-radius:10px;max-width:70ch}
+.stim{margin:16px 0 18px}
+.series{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px}
+.series .sep{color:var(--muted);font-size:22px;font-weight:700}
+.series .op{color:var(--muted);font-size:13px;font-style:italic;max-width:58px;text-align:center;line-height:1.2}
+.matrix{display:grid;grid-template-columns:repeat(3,minmax(0,98px));gap:6px;justify-content:center}
+.cell{background:#fff;border:1.5px solid #c9d1e3;border-radius:8px;width:clamp(62px,14vw,100px);aspect-ratio:1}
+.matrix .cell{width:100%}
+.cell svg,.optbody svg{display:block;width:100%;height:100%}
+.cell.q{display:grid;place-items:center;font-size:34px;font-weight:700;color:#5b6785;background:#f1f4fb;border-style:dashed}
+.opts{display:grid;gap:10px;margin-top:8px}
+.opts-txt{grid-template-columns:1fr}
+.opts-fig{grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
+.opt{display:flex;gap:12px;align-items:center;text-align:left;border:2px solid var(--line);background:var(--card);border-radius:12px;padding:11px 14px;min-height:52px;transition:border-color .12s,background .12s}
+.opt:hover:not([disabled]){border-color:var(--accent)}
+.opt .letter{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:14px}
+.opt.sel{border-color:var(--accent);background:var(--accent-soft)}
+.opt.sel .letter{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.opts-fig .opt{flex-direction:column;align-items:stretch;padding:10px;gap:8px}
+.opts-fig .letter{align-self:center}
+.opts-fig .optbody{background:#fff;border:1.5px solid #c9d1e3;border-radius:8px;aspect-ratio:1}
+.opt.correct{border-color:var(--good);background:var(--good-soft)}
+.opt.correct .letter{background:var(--good);border-color:var(--good);color:#fff}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.opt.wrong .letter{background:var(--bad);border-color:var(--bad);color:#fff}
+.opt[disabled]{cursor:default;color:inherit}
+.navrow{display:flex;justify-content:space-between;gap:12px;margin-top:22px}
+.hint{color:var(--muted);font-size:13px;margin-top:14px}
+
+/* resultado */
+.score-row{display:flex;flex-wrap:wrap;gap:22px;align-items:center}
+.ring{width:132px;height:132px;flex:none;position:relative}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .t{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-weight:800;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.ring .t small{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:4px}
+.score-row h2{font-size:26px}
+.score-row p{margin:6px 0 0;color:var(--muted)}
+.bars{display:grid;gap:12px;margin:24px 0 4px}
+.bar{display:grid;grid-template-columns:minmax(150px,200px) 1fr 48px;gap:12px;align-items:center;font-size:14px}
+.bar .track{height:12px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar .fill{height:100%;background:var(--c);border-radius:99px}
+.bar .v{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.res-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.review{margin-top:22px;display:grid;gap:16px}
+.review h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.rev{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:20px}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;margin-left:8px}
+.pill.ok{background:var(--good-soft);color:var(--good)}
+.pill.ko{background:var(--bad-soft);color:var(--bad)}
+.pill.na{background:var(--line);color:var(--muted)}
+.expl{margin-top:14px;padding:12px 16px;border-radius:10px;background:var(--accent-soft);font-size:15px}
+.expl b{color:var(--accent)}
+
+/* confirmación */
+.overlay{position:fixed;inset:0;background:rgba(8,12,28,.55);display:grid;place-items:center;padding:16px;z-index:20}
+.modal{background:var(--card);border-radius:var(--radius);padding:24px;max-width:420px;width:100%;border:1px solid var(--line)}
+.modal h3{font-size:19px;margin-bottom:8px}
+.modal p{margin:0 0 18px;color:var(--muted)}
+.modal .row{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+@media (max-width:560px){
+  .card{padding:18px 16px}
+  .bar{grid-template-columns:1fr 44px;}
+  .bar .track{grid-column:1/3;order:3}
+  .stem,.ask{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="brand"><span class="mark" aria-hidden="true">A</span><span>Simulador de Admisión<small>Aptitud académica · práctica estilo prueba de ingreso</small></span></header>
+
+  <!-- INICIO -->
+  <main id="s-start">
+    <section class="card hero">
+      <h1>Prueba de aptitud para ingresar a la universidad</h1>
+      <p class="lead">Cada intento reúne 5 ejercicios de dificultad media-alta tomados al azar de un banco de 50. Practica las tres áreas que suelen evaluar las pruebas de admisión y revisa la explicación de cada respuesta.</p>
+      <div class="areas" id="areas"></div>
+      <ul class="facts">
+        <li><b>5</b> ejercicios por intento</li>
+        <li><b>10 min</b> de tiempo</li>
+        <li><b>1 punto</b> por acierto, sin descuento por error</li>
+        <li>Siempre hay al menos <b>1 de cada área</b></li>
+      </ul>
+      <div class="start-row">
+        <button class="btn primary" id="btn-start" type="button">Comenzar intento</button>
+        <label class="check" for="chk-notime"><input type="checkbox" id="chk-notime"> Practicar sin límite de tiempo</label>
+      </div>
+    </section>
+    <section class="hist hidden" id="hist"></section>
+  </main>
+
+  <!-- EXAMEN -->
+  <main id="s-exam" class="hidden">
+    <div class="topbar">
+      <div class="att" id="att"></div>
+      <nav class="sheet" id="sheet" aria-label="Hoja de respuestas"></nav>
+      <div class="timer" id="timer" aria-live="off">10:00</div>
+    </div>
+    <section class="card" id="qcard"></section>
+    <div class="navrow">
+      <button class="btn" type="button" id="btn-prev">Anterior</button>
+      <button class="btn primary" type="button" id="btn-next">Siguiente</button>
+    </div>
+    <p class="hint">Atajos: teclas A–E para marcar, flechas ← → para cambiar de pregunta.</p>
+  </main>
+
+  <!-- RESULTADO -->
+  <main id="s-result" class="hidden"></main>
+</div>
+<div class="overlay hidden" id="confirm" role="alertdialog" aria-modal="true" aria-labelledby="c-title">
+  <div class="modal">
+    <h3 id="c-title">¿Terminar el intento?</h3>
+    <p id="c-text"></p>
+    <div class="row"><button class="btn" type="button" id="c-no">Seguir revisando</button><button class="btn primary" type="button" id="c-yes">Terminar intento</button></div>
+  </div>
+</div>
+
+<script>
+/* ===== Banco de preguntas: 50 ejercicios (17 verbal, 17 numérico, 16 abstracto) ===== */
+(function (root) {
+  const INK = '#1b2333';
+  const FILL = { k: '#1b2333', w: '#ffffff', g: '#a9b3c7' };
+  const SW = 2.6;
+  const r1 = v => Math.round(v * 10) / 10;
+
+  /* ---------- primitivas SVG ---------- */
+  function poly(pts, extra) { return '<polygon points="' + pts.map(p => r1(p[0]) + ',' + r1(p[1])).join(' ') + '" ' + extra + '/>'; }
+  function style(f) { return 'fill="' + FILL[f] + '" stroke="' + INK + '" stroke-width="' + SW + '" stroke-linejoin="round"'; }
+  function regPts(n, r) { const a = []; for (let k = 0; k < n; k++) { const t = (-90 + 360 * k / n) * Math.PI / 180; a.push([r * Math.cos(t), r * Math.sin(t)]); } return a; }
+  function sh(kind, x, y, r, f, rot) {
+    f = f || 'w'; rot = rot || 0;
+    const s = style(f); let el;
+    if (kind === 'circle') el = '<circle r="' + r + '" ' + s + '/>';
+    else if (kind === 'square') el = '<rect x="' + r1(-r * .9) + '" y="' + r1(-r * .9) + '" width="' + r1(r * 1.8) + '" height="' + r1(r * 1.8) + '" ' + s + '/>';
+    else if (kind === 'tri') el = poly([[0, -r], [r * .95, r * .8], [-r * .95, r * .8]], s);
+    else if (kind === 'diamond') el = poly([[0, -r], [r, 0], [0, r], [-r, 0]], s);
+    else if (kind === 'arrow') el = poly([[0, -r], [r * .8, 0], [r * .3, 0], [r * .3, r], [-r * .3, r], [-r * .3, 0], [-r * .8, 0]], s);
+    else if (/^p\d$/.test(kind)) el = poly(regPts(+kind.slice(1), r), s);
+    else throw new Error('forma desconocida ' + kind);
+    return '<g transform="translate(' + x + ' ' + y + ') rotate(' + rot + ')">' + el + '</g>';
+  }
+  function fig(inner) { return '<svg class="fig" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + inner + '</svg>'; }
+
+  /* ---------- poliominós (cuadrícula 3x3) ---------- */
+  const rot90 = cs => cs.map(([r, c]) => [c, 2 - r]);
+  const hmir = cs => cs.map(([r, c]) => [r, 2 - c]);
+  const vmir = cs => cs.map(([r, c]) => [2 - r, c]);
+  const rot180 = cs => rot90(rot90(cs));
+  const okey = cs => cs.map(([r, c]) => r * 3 + c).sort((a, b) => a - b).join(',');
+  function omino(cs) {
+    return fig(cs.map(([r, c]) => '<rect x="' + (20 + c * 20) + '" y="' + (20 + r * 20) + '" width="20" height="20" fill="' + INK + '" stroke="#fff" stroke-width="1.6"/>').join(''));
+  }
+  /* minicuadrícula 3x3 con casillas marcadas */
+  function minigrid(set) {
+    let s = '';
+    for (let i = 0; i < 9; i++) {
+      const r = Math.floor(i / 3), c = i % 3;
+      s += '<rect x="' + (17 + c * 22) + '" y="' + (17 + r * 22) + '" width="22" height="22" fill="' + (set.indexOf(i) >= 0 ? INK : '#fff') + '" stroke="#8a94a8" stroke-width="1.4"/>';
+    }
+    return fig(s);
+  }
+  /* marcas en esquinas */
+  const CORN = { TL: [27, 27], TR: [73, 27], BL: [27, 73], BR: [73, 73] };
+  function corners(set) { return fig(set.map(k => sh('square', CORN[k][0], CORN[k][1], 11, 'k')).join('')); }
+  /* dados */
+  const DX = [27, 50, 73];
+  const DICE = {
+    1: [[1, 1]], 2: [[0, 0], [2, 2]], 3: [[0, 0], [1, 1], [2, 2]], 4: [[0, 0], [0, 2], [2, 0], [2, 2]],
+    5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]], 6: [[0, 0], [1, 0], [2, 0], [0, 2], [1, 2], [2, 2]]
+  };
+  function dice(n) { return fig(DICE[n].map(([r, c]) => sh('circle', DX[c], DX[r], 9, 'k')).join('')); }
+
+  /* ---------- estímulos ---------- */
+  const cell = f => '<div class="cell">' + f + '</div>';
+  const qcell = '<div class="cell q">?</div>';
+  const seriesStim = figs => '<div class="stim series">' + figs.map(cell).join('<span class="sep">›</span>') + '<span class="sep">›</span>' + qcell + '</div>';
+  const matrixStim = cells => '<div class="stim matrix">' + cells.map(c => c === null ? qcell : cell(c)).join('') + '</div>';
+  const analogyStim = (a, b, c) => '<div class="stim series">' + cell(a) + '<span class="op">es a</span>' + cell(b) + '<span class="op">como</span>' + cell(c) + '<span class="op">es a</span>' + qcell + '</div>';
+
+  const BANK = [];
+  const add = q => BANK.push(q);
+
+  /* =====================================================
+     RAZONAMIENTO VERBAL (17)
+     ===================================================== */
+  add({ area: 'verbal', stem: 'Elija la alternativa que mantiene la misma relación que la pareja base.<div class="base">PRÓDIGO : AVARO</div>',
+    options: ['Cauto : temerario', 'Sagaz : astuto', 'Austero : sobrio', 'Benévolo : bondadoso', 'Locuaz : verboso'], answer: 0,
+    explanation: 'Es una relación de antonimia: el pródigo derrocha y el avaro acumula en exceso. Cauto y temerario también son opuestos; las demás parejas son sinónimos.' });
+
+  add({ area: 'verbal', stem: 'Elija la alternativa que mantiene la misma relación que la pareja base.<div class="base">CATALIZADOR : REACCIÓN</div>',
+    options: ['Anestesia : dolor', 'Fertilizante : crecimiento', 'Veneno : vida', 'Dique : río', 'Ancla : barco'], answer: 1,
+    explanation: 'El catalizador acelera o favorece una reacción; el fertilizante favorece el crecimiento. En las demás parejas el primer término suprime, destruye o detiene al segundo.' });
+
+  add({ area: 'verbal', stem: 'Elija la alternativa que mantiene la misma relación que la pareja base.<div class="base">VALENTÍA : TEMERIDAD</div>',
+    options: ['Ahorro : avaricia', 'Médico : enfermedad', 'Honestidad : mentira', 'Tristeza : llanto', 'Trabajo : salario'], answer: 0,
+    explanation: 'La temeridad es la valentía llevada al exceso; la avaricia es el ahorro exagerado. Honestidad y mentira son opuestas; las otras relaciones son de tratamiento, manifestación o retribución.' });
+
+  add({ area: 'verbal', stem: 'Elija la alternativa que es sinónimo de la palabra en mayúsculas.<div class="base">PERENTORIO</div>',
+    options: ['Urgente', 'Perpetuo', 'Dudoso', 'Prescindible', 'Tardío'], answer: 0,
+    explanation: 'Perentorio significa «que no admite dilación», es decir, urgente. No debe confundirse con «perenne», que es lo que dura para siempre.' });
+
+  add({ area: 'verbal', stem: 'Elija la alternativa que es antónimo de la palabra en mayúsculas.<div class="base">ENCOMIAR</div>',
+    options: ['Elogiar', 'Vituperar', 'Exaltar', 'Ensalzar', 'Proclamar'], answer: 1,
+    explanation: 'Encomiar es alabar con entusiasmo; su opuesto es vituperar, censurar o hablar mal de alguien. Elogiar, exaltar y ensalzar son sinónimos de encomiar.' });
+
+  add({ area: 'verbal', stem: 'Elija la alternativa que es antónimo de la palabra en mayúsculas.<div class="base">DIÁFANO</div>',
+    options: ['Cristalino', 'Translúcido', 'Opaco', 'Nítido', 'Límpido'], answer: 2,
+    explanation: 'Diáfano es lo que deja pasar la luz con claridad; su antónimo es opaco. Todas las demás opciones expresan transparencia o claridad.' });
+
+  add({ area: 'verbal', stem: 'Complete la oración eligiendo la alternativa cuyas palabras le dan sentido lógico.<div class="base">«Aunque sus argumentos eran ______, el candidato los expuso con tanta ______ que logró convencer a la audiencia.»</div>',
+    options: ['sólidos – torpeza', 'endebles – elocuencia', 'rigurosos – claridad', 'irrefutables – vehemencia', 'escasos – timidez'], answer: 1,
+    explanation: '«Aunque» marca contraste: argumentos débiles (endebles), pero presentados con tanta elocuencia que persuadieron. En las otras opciones no hay contraste coherente o la forma de exponer no explicaría el convencimiento.' });
+
+  add({ area: 'verbal', stem: 'Complete la oración eligiendo la alternativa que conserva la coherencia y la correcta construcción.<div class="base">«La investigación no solo reveló irregularidades contables, ______ evidenció una red de complicidad que ______ a varios funcionarios.»</div>',
+    options: ['sino que – involucraba', 'además – absolvía', 'y – exculpaba', 'sino – salvaba', 'aunque – implicaba'], answer: 0,
+    explanation: 'La estructura correlativa exige «no solo… sino que…» (antes de un verbo conjugado). Además, una red de complicidad «involucra» a funcionarios; no los absuelve ni los exculpa.' });
+
+  add({ area: 'verbal', stem: 'Ordene las oraciones para formar un párrafo coherente.<div class="base"><b>I.</b> Sin embargo, investigaciones recientes demuestran que puede desarrollarse con entrenamiento.<br><b>II.</b> La resiliencia suele considerarse un rasgo innato de la personalidad.<br><b>III.</b> Esto significa que cualquier persona puede fortalecerla mediante hábitos y apoyo social.<br><b>IV.</b> Esa creencia llevó a suponer que quien no la poseía estaba condenado a la fragilidad emocional.</div>',
+    options: ['II – IV – I – III', 'II – I – IV – III', 'IV – II – I – III', 'I – II – IV – III', 'II – IV – III – I'], answer: 0,
+    explanation: 'II presenta la idea general; IV retoma «esa creencia» y señala su consecuencia; I introduce el contraste con «sin embargo»; III cierra con una conclusión («esto significa…»).' });
+
+  add({ area: 'verbal', keepOrder: true, stem: 'Elimine la oración que no guarda relación con el tema central del conjunto.<div class="base"><b>I.</b> La lectura sostenida fortalece las redes neuronales asociadas al lenguaje y la memoria.<br><b>II.</b> Quienes leen con frecuencia amplían su vocabulario y comprenden mejor textos complejos.<br><b>III.</b> El mercado editorial latinoamericano ha crecido gracias a las ferias del libro.<br><b>IV.</b> Además, la lectura reflexiva entrena la atención y el pensamiento crítico.<br><b>V.</b> Estudios con neuroimágenes sugieren que leer ficción potencia la empatía.</div>',
+    options: ['Oración I', 'Oración II', 'Oración III', 'Oración IV', 'Oración V'], answer: 2,
+    explanation: 'El tema son los beneficios cognitivos de la lectura. La oración III trata del mercado editorial, un asunto comercial que rompe la unidad temática.' });
+
+  add({ area: 'verbal', stem: 'Lea el texto y responda.',
+    passage: 'Durante décadas, la economía partió de una premisa simple: lo escaso es lo valioso. Hoy, cuando la información abunda hasta el desborde, lo verdaderamente escaso no es el dato, sino el tiempo y la concentración necesarios para procesarlo. Por eso, las plataformas digitales compiten no por informar, sino por retener la atención de sus usuarios.',
+    ask: '¿Cuál es la idea central del texto?',
+    options: ['La información es hoy un recurso escaso.', 'La atención se ha vuelto el recurso en disputa entre las plataformas digitales.', 'Las plataformas buscan, ante todo, informar mejor.', 'El valor de un recurso no depende de su escasez.', 'Los datos han perdido toda utilidad.'], answer: 1,
+    explanation: 'El texto sostiene que, como sobra información, lo escaso es la atención, y por eso las plataformas compiten por retenerla. La opción A afirma lo contrario del texto.' });
+
+  add({ area: 'verbal', stem: 'Lea el texto y responda.',
+    passage: 'Algunos críticos sostienen que la traducción automática volverá obsoletos a los traductores humanos. Sin embargo, la experiencia demuestra que cada avance tecnológico ha desplazado tareas, no profesiones: hoy los traductores dedican menos tiempo a verter palabras y más a revisar matices culturales, tono y coherencia, aspectos que las máquinas aún resuelven con torpeza.',
+    ask: 'Del texto se infiere que…',
+    options: ['los traductores humanos dejarán de ser necesarios.', 'la tecnología modifica las tareas del traductor sin suprimir su profesión.', 'las máquinas manejan con soltura los matices culturales.', 'los críticos de la traducción automática tienen razón.', 'los traductores rechazan el uso de herramientas tecnológicas.'], answer: 1,
+    explanation: 'El autor contrasta la postura de los críticos con la evidencia: la tecnología cambia el trabajo (menos traducción literal, más revisión de matices), pero no elimina la profesión.' });
+
+  add({ area: 'verbal', stem: 'Señale la palabra que NO guarda relación de significado con las demás.',
+    options: ['Tenaz', 'Perseverante', 'Obstinado', 'Voluble', 'Constante'], answer: 3,
+    explanation: 'Tenaz, perseverante, obstinado y constante expresan firmeza o continuidad. Voluble significa cambiante e inconstante, por lo que es el término excluido.' });
+
+  add({ area: 'verbal', stem: 'Elija los conectores que dan coherencia al texto.<div class="base">«El rendimiento académico mejoró notablemente; ______, los docentes recomendaron mantener la estrategia. ______, los recursos son limitados, por lo que se priorizarán los grupos más vulnerables.»</div>',
+    options: ['por consiguiente – no obstante', 'sin embargo – por ello', 'además – es decir', 'en cambio – así pues', 'porque – aunque'], answer: 0,
+    explanation: 'La mejora lleva a una consecuencia (por consiguiente) y luego se introduce una limitación que matiza lo anterior (no obstante).' });
+
+  add({ area: 'verbal', stem: 'Elija la alternativa que mantiene la misma relación que la pareja base.<div class="base">LACÓNICO : CONCISO</div>',
+    options: ['Taciturno : callado', 'Sagaz : necio', 'Veloz : lento', 'Alto : bajo', 'Prudente : temerario'], answer: 0,
+    explanation: 'Es una relación de sinonimia. Taciturno y callado son sinónimos; las demás parejas son antónimos.' });
+
+  add({ area: 'verbal', stem: 'Lea el texto y responda.',
+    passage: 'Se suele imaginar al inventor como un genio solitario que, de pronto, da con la solución. La historia de la tecnología desmiente esa estampa: las ideas más fértiles surgieron donde se cruzaron oficios y saberes distintos, como en los talleres donde convivían artesanos, matemáticos y comerciantes.',
+    ask: '¿Con cuál de las siguientes afirmaciones coincidiría el autor?',
+    options: ['La innovación nace sobre todo del trabajo aislado.', 'El cruce de saberes diversos favorece la creatividad técnica.', 'Los inventores deben especializarse en un solo oficio.', 'La genialidad individual basta para innovar.', 'Los comerciantes obstaculizan el avance técnico.'], answer: 1,
+    explanation: 'El autor desmiente la imagen del genio solitario y valora los espacios donde se mezclaban oficios y saberes distintos.' });
+
+  add({ area: 'verbal', stem: 'Complete la oración eligiendo la alternativa cuyas palabras le dan sentido lógico.<div class="base">«Lejos de ser ______, su discurso estuvo repleto de ______ que revelaban un conocimiento profundo del tema.»</div>',
+    options: ['vacuo – precisiones', 'extenso – digresiones', 'sólido – ambigüedades', 'riguroso – vaguedades', 'elocuente – imprecisiones'], answer: 0,
+    explanation: '«Lejos de ser» introduce lo contrario de lo que sigue: un discurso que revela conocimiento profundo no es vacuo (vacío) y se llena de precisiones.' });
+
+  /* =====================================================
+     RAZONAMIENTO NUMÉRICO (17)
+     ===================================================== */
+  add({ area: 'numerico', stem: 'Halle el número que continúa la serie:<div class="base">3, 7, 16, 35, 74, …</div>',
+    options: ['148', '151', '153', '157', '160'], answer: 2,
+    explanation: 'Cada término es el doble del anterior más una cantidad que crece de 1 en 1: ×2+1, ×2+2, ×2+3, ×2+4 y ahora ×2+5. Entonces 74 × 2 + 5 = 153.' });
+
+  add({ area: 'numerico', stem: 'Halle el número que continúa la serie:<div class="base">5, 3, 10, 7, 20, 15, 40, …</div>',
+    options: ['27', '29', '30', '31', '35'], answer: 3,
+    explanation: 'Son dos series intercaladas. Posiciones impares: 5, 10, 20, 40 (×2). Posiciones pares: 3, 7, 15, … (×2 + 1). El siguiente de la segunda es 15 × 2 + 1 = 31.' });
+
+  add({ area: 'numerico', stem: 'El precio de un artículo se incrementa en 20 % y luego se rebaja 10 % sobre el nuevo precio. Si el precio final es $162, ¿cuál era el precio original?',
+    options: ['$140', '$144', '$150', '$160', '$180'], answer: 2,
+    explanation: 'Factor total: 1,20 × 0,90 = 1,08. Precio original = 162 ÷ 1,08 = $150.' });
+
+  add({ area: 'numerico', stem: 'Una obra la termina A en 12 días y B en 24 días. Trabajan juntos durante 4 días y luego A se retira. ¿Cuántos días más necesitará B, trabajando solo, para terminar la obra?',
+    options: ['8', '10', '12', '14', '16'], answer: 2,
+    explanation: 'Juntos hacen 1/12 + 1/24 = 1/8 de la obra por día; en 4 días hacen 1/2. Falta la mitad, y B hace 1/24 por día: (1/2) ÷ (1/24) = 12 días.' });
+
+  add({ area: 'numerico', stem: 'Un ciclista recorre un trayecto de ida a 20 km/h y regresa por el mismo camino a 30 km/h. ¿Cuál es su velocidad media en todo el recorrido?',
+    options: ['22 km/h', '24 km/h', '25 km/h', '26 km/h', '28 km/h'], answer: 1,
+    explanation: 'No es el promedio simple (25). Con distancias iguales se usa la media armónica: 2·20·30 ÷ (20 + 30) = 24 km/h.' });
+
+  add({ area: 'numerico', stem: 'Hace 6 años la edad de Ana era el triple de la de Luis; dentro de 6 años será el doble. ¿Cuánto suman sus edades actuales?',
+    options: ['52', '56', '60', '64', '68'], answer: 2,
+    explanation: 'Con A y L actuales: A − 6 = 3(L − 6) y A + 6 = 2(L + 6). Resolviendo: L = 18 y A = 42. Suman 60. Comprobación: hace 6 años 36 y 12 (triple); dentro de 6, 48 y 24 (doble).' });
+
+  add({ area: 'numerico', stem: 'Se lanzan dos dados comunes. ¿Cuál es la probabilidad de que la suma sea 8 o de que ambos dados muestren el mismo número?',
+    options: ['5/18', '1/3', '11/36', '1/4', '7/36'], answer: 0,
+    explanation: 'Suma 8: 5 casos. Números iguales: 6 casos. El caso (4,4) está en ambos grupos, así que hay 5 + 6 − 1 = 10 casos favorables de 36: 10/36 = 5/18.' });
+
+  add({ area: 'numerico', stem: 'Se mezclan 20 litros de alcohol al 30 % con 30 litros de alcohol al 50 %. ¿Qué porcentaje de alcohol tiene la mezcla?',
+    options: ['38 %', '40 %', '42 %', '44 %', '45 %'], answer: 2,
+    explanation: 'Alcohol puro: 20 × 0,30 + 30 × 0,50 = 6 + 15 = 21 litros, en 50 litros de mezcla: 21/50 = 42 %.' });
+
+  add({ area: 'numerico', stem: 'Se depositan $2 000 al 10 % anual con capitalización anual. ¿Qué interés total se habrá ganado al cabo de 2 años?',
+    options: ['$400', '$410', '$420', '$440', '$460'], answer: 2,
+    explanation: 'Monto final: 2 000 × 1,1² = 2 420. Interés ganado: 2 420 − 2 000 = $420 (el interés simple daría $400).' });
+
+  add({ area: 'numerico', stem: 'Un tanque vacío se llena con una llave en 6 horas y se vacía con un desagüe en 9 horas. Si se abren ambos a la vez, ¿en cuántas horas se llenará el tanque?',
+    options: ['12', '15', '18', '21', '24'], answer: 2,
+    explanation: 'En una hora la llave llena 1/6 y el desagüe vacía 1/9, así que el avance neto es 1/6 − 1/9 = 1/18. El tanque se llena en 18 horas.' });
+
+  add({ area: 'numerico', stem: 'Doce obreros construyen 300 m de muro en 15 días trabajando 8 horas diarias. ¿En cuántos días construirán 500 m de muro 20 obreros que trabajan 6 horas diarias?',
+    options: ['16', '18', '20', '24', '25'], answer: 2,
+    explanation: 'Horas-obrero por metro: (12 × 15 × 8) ÷ 300 = 4,8. Para 500 m se necesitan 2 400 horas-obrero. Cada día aportan 20 × 6 = 120, así que 2 400 ÷ 120 = 20 días.' });
+
+  add({ area: 'numerico', stem: 'Se define la operación <b>a ⊕ b = a² − 2b + ab</b>. Calcule <b>(3 ⊕ 2) ⊕ 1</b>.',
+    options: ['118', '124', '130', '136', '142'], answer: 2,
+    explanation: '3 ⊕ 2 = 9 − 4 + 6 = 11. Luego 11 ⊕ 1 = 121 − 2 + 11 = 130.' });
+
+  add({ area: 'numerico', stem: 'El promedio de cinco números es 18. Si se elimina uno de ellos, el promedio de los cuatro restantes es 16. ¿Cuál es el número eliminado?',
+    options: ['22', '24', '26', '28', '30'], answer: 2,
+    explanation: 'Suma de los cinco: 5 × 18 = 90. Suma de los cuatro restantes: 4 × 16 = 64. El número eliminado es 90 − 64 = 26.' });
+
+  add({ area: 'numerico', stem: '¿Cuántos números de tres cifras distintas, mayores que 300, pueden formarse con los dígitos 1, 2, 3, 4 y 5?',
+    options: ['24', '30', '36', '48', '60'], answer: 2,
+    explanation: 'La cifra de las centenas puede ser 3, 4 o 5 (3 opciones); la de las decenas, cualquiera de las 4 restantes; la de las unidades, una de las 3 que quedan: 3 × 4 × 3 = 36.' });
+
+  add({ area: 'numerico', stem: 'En un colegio, el 60 % de los estudiantes son mujeres. Practica fútbol el 25 % de las mujeres y el 40 % de los hombres. ¿Qué porcentaje del total de estudiantes practica fútbol?',
+    options: ['29 %', '31 %', '32,5 %', '33 %', '35 %'], answer: 1,
+    explanation: 'Mujeres que juegan: 0,60 × 25 % = 15 % del total. Hombres que juegan: 0,40 × 40 % = 16 % del total. Total: 15 % + 16 % = 31 %.' });
+
+  add({ area: 'numerico', stem: 'Halle el número que continúa la serie:<div class="base">4, 9, 25, 49, 121, 169, …</div>',
+    options: ['225', '256', '289', '324', '361'], answer: 2,
+    explanation: 'Son los cuadrados de los números primos consecutivos: 2², 3², 5², 7², 11², 13² y el siguiente primo es 17, de modo que 17² = 289.' });
+
+  add({ area: 'numerico', stem: 'El área de un rectángulo es 96 cm² y su largo mide 4 cm más que su ancho. ¿Cuál es su perímetro?',
+    options: ['36 cm', '38 cm', '40 cm', '42 cm', '44 cm'], answer: 2,
+    explanation: 'Si el ancho es x, x(x + 4) = 96, de donde x = 8 y el largo es 12. Perímetro: 2(8 + 12) = 40 cm.' });
+
+  /* =====================================================
+     RAZONAMIENTO ABSTRACTO (16)
+     ===================================================== */
+
+  /* A1: punto en esquina (horario) + flecha que gira 45° */
+  const CRN = [[18, 18], [82, 18], [82, 82], [18, 82]];
+  const a1 = (corner, rot) => fig('<rect x="6" y="6" width="88" height="88" rx="4" fill="none" stroke="' + INK + '" stroke-width="2"/>' + sh('circle', CRN[corner][0], CRN[corner][1], 8, 'k') + sh('arrow', 50, 50, 27, 'w', rot));
+  add({ area: 'abstracto', stem: 'Elija la figura que continúa la serie.',
+    stimulus: seriesStim([0, 1, 2, 3].map(i => a1(i % 4, 45 * i))),
+    options: [a1(0, 180), a1(1, 180), a1(0, 135), a1(0, 225), a1(3, 180)], optHtml: true, answer: 0,
+    explanation: 'El punto negro avanza una esquina en sentido horario y la flecha gira 45° en sentido horario en cada paso. En la quinta figura el punto regresa a la esquina superior izquierda y la flecha ha girado 180° (apunta hacia abajo).' });
+
+  /* A2: n elementos, forma cíclica, relleno alterno */
+  const ROWPOS = { 1: [[50, 50]], 2: [[32, 50], [68, 50]], 3: [[24, 50], [50, 50], [76, 50]], 4: [[32, 32], [68, 32], [32, 68], [68, 68]], 5: [[24, 32], [50, 32], [76, 32], [37, 68], [63, 68]], 6: [[24, 32], [50, 32], [76, 32], [24, 68], [50, 68], [76, 68]] };
+  const a2 = (n, kind, f) => fig(ROWPOS[n].map(p => sh(kind, p[0], p[1], 10.5, f)).join(''));
+  add({ area: 'abstracto', stem: 'Elija la figura que continúa la serie.',
+    stimulus: seriesStim([a2(1, 'circle', 'k'), a2(2, 'square', 'w'), a2(3, 'tri', 'k'), a2(4, 'circle', 'w')]),
+    options: [a2(5, 'square', 'k'), a2(5, 'square', 'w'), a2(4, 'square', 'k'), a2(5, 'tri', 'k'), a2(6, 'square', 'k')], optHtml: true, answer: 0,
+    explanation: 'Cada figura añade un elemento; la forma sigue el ciclo círculo → cuadrado → triángulo y el relleno alterna negro y blanco. La quinta lleva 5 cuadrados negros.' });
+
+  /* A3: matriz XOR en filas (cuadrados en esquinas) */
+  const MA = [
+    [['TL', 'TR'], ['TR', 'BL'], ['TL', 'BL']],
+    [['TL', 'BR'], ['TL', 'BL'], ['BL', 'BR']],
+    [['TR', 'BR'], ['TL', 'BR'], ['TL', 'TR']]
+  ];
+  add({ area: 'abstracto', stem: 'Elija la figura que completa la matriz.',
+    stimulus: matrixStim([].concat(MA[0].map(corners), MA[1].map(corners), [corners(MA[2][0]), corners(MA[2][1]), null])),
+    options: [corners(['TL', 'TR']), corners(['TL', 'TR', 'BR']), corners(['BR']), corners(['TR', 'BL']), corners(['TL', 'BR'])], optHtml: true, answer: 0,
+    explanation: 'En cada fila, la tercera figura conserva solo los cuadrados que aparecen en una de las dos primeras; los que coinciden se anulan. Fila 3: {arriba-derecha, abajo-derecha} y {arriba-izquierda, abajo-derecha} → quedan arriba-izquierda y arriba-derecha.' });
+
+  /* A4: cuadrado latino de forma y relleno */
+  const LS = ['circle', 'square', 'tri'], LF = ['k', 'g', 'w'];
+  const a4 = (s, f) => fig(sh(LS[s], 50, 52, 27, LF[f]));
+  const a4c = (r, c) => a4((r + c) % 3, (r + 2 * c) % 3);
+  const a4cells = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) a4cells.push((r === 2 && c === 2) ? null : a4c(r, c));
+  add({ area: 'abstracto', stem: 'Elija la figura que completa la matriz.',
+    stimulus: matrixStim(a4cells),
+    options: [a4(1, 0), a4(1, 1), a4(1, 2), a4(0, 0), a4(2, 0)], optHtml: true, answer: 0,
+    explanation: 'En cada fila y en cada columna aparecen una sola vez las tres formas y los tres rellenos. En la tercera fila ya están «triángulo blanco» y «círculo gris»: falta el cuadrado negro.' });
+
+  /* A5: anillo de 8 posiciones */
+  const ringPos = p => [50 + 34 * Math.cos((-90 + 45 * p) * Math.PI / 180), 50 + 34 * Math.sin((-90 + 45 * p) * Math.PI / 180)];
+  const a5 = (b, w) => { let s = ''; for (let p = 0; p < 8; p++) { const q = ringPos(p); s += '<circle cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" r="2.2" fill="#a9b3c7"/>'; } const qb = ringPos(b), qw = ringPos(w); return fig(s + sh('circle', r1(qb[0]), r1(qb[1]), 7.5, 'k') + sh('circle', r1(qw[0]), r1(qw[1]), 7.5, 'w')); };
+  const m8 = v => ((v % 8) + 8) % 8;
+  add({ area: 'abstracto', stem: 'Elija la figura que continúa la serie. Los puntos se mueven sobre las 8 posiciones del círculo.',
+    stimulus: seriesStim([0, 1, 2, 3].map(i => a5(m8(2 * i), m8(5 - i)))),
+    options: [a5(0, 1), a5(0, 7), a5(0, 2), a5(2, 1), a5(6, 1)], optHtml: true, answer: 0,
+    explanation: 'El punto negro avanza 2 posiciones en sentido horario y el punto blanco retrocede 1 posición (antihorario) en cada paso. En la quinta figura el negro vuelve a la posición superior y el blanco queda una posición a su derecha.' });
+
+  /* A6: analogía de figuras (gira 90° y cambia relleno) */
+  add({ area: 'abstracto', stem: 'Complete la analogía entre figuras.',
+    stimulus: analogyStim(fig(sh('tri', 50, 50, 30, 'k', 0)), fig(sh('tri', 50, 50, 30, 'w', 90)), fig(sh('arrow', 50, 50, 30, 'w', 0))),
+    options: [fig(sh('arrow', 50, 50, 30, 'k', 90)), fig(sh('arrow', 50, 50, 30, 'w', 90)), fig(sh('arrow', 50, 50, 30, 'k', 270)), fig(sh('arrow', 50, 50, 30, 'k', 180)), fig(sh('arrow', 50, 50, 30, 'k', 0))], optHtml: true, answer: 0,
+    explanation: 'De la primera a la segunda figura ocurren dos cambios: gira 90° en sentido horario y el relleno se invierte (negro → blanco). Aplicados a la flecha blanca: queda negra y apunta a la derecha.' });
+
+  /* A7: polígonos con lados crecientes, relleno alterno y puntos internos */
+  const DOTP = { 1: [[50, 50]], 2: [[40, 50], [60, 50]], 3: [[35, 54], [50, 54], [65, 54]] };
+  const a7 = (n, f, d) => fig(sh('p' + n, 50, 52, 38, f) + DOTP[d].map(p => '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="5.2" fill="' + (f === 'k' ? '#fff' : INK) + '" stroke="' + INK + '" stroke-width="1.2"/>').join(''));
+  add({ area: 'abstracto', stem: 'Elija la figura que continúa la serie.',
+    stimulus: seriesStim([a7(3, 'k', 1), a7(4, 'w', 1), a7(5, 'k', 2), a7(6, 'w', 2)]),
+    options: [a7(7, 'k', 3), a7(7, 'w', 3), a7(8, 'k', 3), a7(7, 'k', 2), a7(6, 'k', 3)], optHtml: true, answer: 0,
+    explanation: 'Tres reglas a la vez: el polígono gana un lado en cada paso (3, 4, 5, 6 → 7), el relleno alterna negro/blanco y los puntos internos siguen 1, 1, 2, 2 → 3. La quinta figura es un heptágono negro con 3 puntos.' });
+
+  /* A8: matriz de dados (multiplicación por filas) */
+  add({ area: 'abstracto', stem: 'Elija la figura que completa la matriz.',
+    stimulus: matrixStim([dice(1), dice(3), dice(3), dice(2), dice(2), dice(4), dice(3), dice(2), null]),
+    options: [dice(6), dice(5), dice(4), dice(3), dice(1)], optHtml: true, answer: 0,
+    explanation: 'En cada fila, el número de puntos de la tercera figura es el producto de los de las dos primeras: 1×3 = 3, 2×2 = 4 y 3×2 = 6. (La suma no sirve: 1+3 ≠ 3.)' });
+
+  /* A9: intruso — nº de lados = nº de puntos */
+  const a9 = (kind, n, rot) => { let d = ''; for (let k = 0; k < n; k++) { const t = (-90 + 360 * k / n) * Math.PI / 180; d += '<circle cx="' + r1(50 + 15 * Math.cos(t)) + '" cy="' + r1(53 + 15 * Math.sin(t)) + '" r="4.6" fill="' + INK + '"/>'; } return fig(sh(kind, 50, 52, 38, 'w', rot || 0) + d); };
+  add({ area: 'abstracto', stem: '¿Cuál de las figuras NO sigue la regla que cumplen las otras cuatro?',
+    options: [a9('p5', 5), a9('diamond', 3), a9('tri', 3), a9('p6', 6), a9('square', 4)], optHtml: true, answer: 1,
+    explanation: 'En cuatro figuras el número de puntos coincide con el número de lados del polígono (triángulo 3, cuadrado 4, pentágono 5, hexágono 6). El rombo tiene 4 lados pero solo 3 puntos.' });
+
+  /* A10: posiciones que rotan + relleno cíclico del círculo */
+  const QP = [[28, 28], [72, 28], [72, 72], [28, 72]];
+  const A10S = [['circle', null], ['square', 'k'], ['tri', 'w'], ['diamond', 'g']];
+  const CYC = ['k', 'g', 'w'];
+  const a10 = (shift, cf) => fig('<line x1="50" y1="6" x2="50" y2="94" stroke="#cfd6e4" stroke-width="1.5"/><line x1="6" y1="50" x2="94" y2="50" stroke="#cfd6e4" stroke-width="1.5"/>' +
+    A10S.map((s, i) => { const q = QP[(i + shift) % 4]; return sh(s[0], q[0], q[1], 15, s[1] || cf); }).join(''));
+  add({ area: 'abstracto', stem: 'Elija la figura que continúa la serie.',
+    stimulus: seriesStim([0, 1, 2, 3, 4].map(i => a10(i % 4, CYC[i % 3]))),
+    options: [a10(1, 'w'), a10(1, 'k'), a10(1, 'g'), a10(2, 'w'), a10(3, 'w')], optHtml: true, answer: 0,
+    explanation: 'Las cuatro figuras avanzan un cuadrante en sentido horario en cada paso (ciclo de 4) y el círculo cambia de relleno siguiendo negro → gris → blanco (ciclo de 3). En la sexta figura, las formas están un cuadrante girado y el círculo es blanco.' });
+
+  /* A11: analogía — se intercambian figura exterior e interior */
+  const nest = (o, i, fo, fi) => fig(sh(o, 50, 50, 40, fo) + sh(i, 50, o === 'tri' ? 58 : 50, 14, fi));
+  add({ area: 'abstracto', stem: 'Complete la analogía entre figuras.',
+    stimulus: analogyStim(nest('circle', 'square', 'w', 'k'), nest('square', 'circle', 'w', 'k'), nest('tri', 'diamond', 'w', 'k')),
+    options: [nest('diamond', 'tri', 'w', 'k'), nest('diamond', 'tri', 'k', 'w'), nest('tri', 'diamond', 'w', 'k'), nest('diamond', 'diamond', 'w', 'k'), nest('tri', 'tri', 'w', 'k')], optHtml: true, answer: 0,
+    explanation: 'La figura exterior pasa al interior y la interior pasa al exterior, conservando los rellenos (exterior blanco, interior negro). Triángulo con rombo → rombo con triángulo.' });
+
+  /* A12: matriz de giros de flecha, relleno por fila */
+  const RF = ['k', 'w', 'g'];
+  const a12 = (r, c) => fig(sh('arrow', 50, 50, 31, RF[r], ((r + c) * 90) % 360));
+  const a12cells = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) a12cells.push((r === 2 && c === 2) ? null : a12(r, c));
+  add({ area: 'abstracto', stem: 'Elija la figura que completa la matriz.',
+    stimulus: matrixStim(a12cells),
+    options: [fig(sh('arrow', 50, 50, 31, 'g', 0)), fig(sh('arrow', 50, 50, 31, 'k', 0)), fig(sh('arrow', 50, 50, 31, 'g', 90)), fig(sh('arrow', 50, 50, 31, 'g', 180)), fig(sh('arrow', 50, 50, 31, 'g', 270))], optHtml: true, answer: 0,
+    explanation: 'La flecha gira 90° en sentido horario al avanzar una columna a la derecha o una fila hacia abajo; el relleno es el mismo en toda la fila (negro, blanco, gris). En la última celda: 180° + 180° = 360°, es decir, apunta hacia arriba, y es gris.' });
+
+  /* A13: intruso — figura en espejo (pentominó F) */
+  const F = [[0, 1], [0, 2], [1, 0], [1, 1], [2, 1]];
+  const F1 = rot90(F), F2 = rot90(F1), F3 = rot90(F2), ODD = rot90(hmir(F));
+  add({ area: 'abstracto', stem: 'Cuatro de estas figuras son la misma pieza girada; una es su imagen en espejo. ¿Cuál es la diferente?',
+    options: [omino(F1), omino(F2), omino(ODD), omino(F3), omino(F)], optHtml: true, answer: 2,
+    explanation: 'Al girar una pieza se obtienen figuras congruentes, pero una imagen en espejo no puede lograrse solo girando. Cuatro figuras son rotaciones de la misma pieza; la diferente es la reflejada.' });
+
+  /* A14: matriz de unión por columnas (minicuadrículas) */
+  const U = [[[0, 4], [1, 3], [2, 6]], [[4, 8], [3, 5], [6, 7]]];
+  const uni = (a, b) => Array.from(new Set(a.concat(b))).sort((x, y) => x - y);
+  add({ area: 'abstracto', stem: 'Elija la figura que completa la matriz.',
+    stimulus: matrixStim([minigrid(U[0][0]), minigrid(U[0][1]), minigrid(U[0][2]), minigrid(U[1][0]), minigrid(U[1][1]), minigrid(U[1][2]), minigrid(uni(U[0][0], U[1][0])), minigrid(uni(U[0][1], U[1][1])), null]),
+    options: [minigrid([2, 6, 7]), minigrid([2, 7]), minigrid([6]), minigrid([2, 6]), minigrid([6, 7])], optHtml: true, answer: 0,
+    explanation: 'En cada columna, la figura de abajo reúne (suma) todas las casillas negras de las dos figuras superiores. Tercera columna: {2, 6} ∪ {6, 7} = tres casillas negras (arriba-derecha, abajo-izquierda y abajo-centro). Si solo se contaran las que no se repiten, la columna 1 no cuadraría.' });
+
+  /* A15: doblado y perforado */
+  const mp = v => r1(6 + 0.88 * v);
+  const hole = (x, y, up) => sh('tri', mp(x), mp(y), 6.5, 'k', up ? 0 : 180);
+  const paper = holes => fig('<rect x="6" y="6" width="88" height="88" fill="#fff" stroke="' + INK + '" stroke-width="2.6"/>' + holes.map(h => hole(h[0], h[1], h[2])).join(''));
+  const fold1 = fig('<rect x="6" y="6" width="88" height="88" fill="#fff" stroke="' + INK + '" stroke-width="2.6"/><line x1="50" y1="6" x2="50" y2="94" stroke="' + INK + '" stroke-width="2" stroke-dasharray="5 4"/><line x1="6" y1="50" x2="94" y2="50" stroke="' + INK + '" stroke-width="2" stroke-dasharray="5 4"/><text x="54" y="21" font-size="13" font-weight="700" fill="#c2410c" font-family="sans-serif">1</text><text x="11" y="45" font-size="13" font-weight="700" fill="#c2410c" font-family="sans-serif">2</text>');
+  const fold2 = fig('<rect x="28" y="28" width="44" height="44" fill="#fff" stroke="' + INK + '" stroke-width="2.6"/><g transform="translate(' + r1(28 + .88 * 15) + ' ' + r1(28 + .88 * 20) + ')">' + '<polygon points="0,-6.5 6.2,5.2 -6.2,5.2" fill="' + INK + '"/></g>');
+  add({ area: 'abstracto', stem: 'Una hoja cuadrada se dobla primero por la línea 1 (la mitad derecha sobre la izquierda) y luego por la línea 2 (la mitad inferior sobre la superior). Se perfora un triángulo con la punta hacia arriba, como se muestra. ¿Cómo queda la hoja al desdoblarla?',
+    stimulus: '<div class="stim series">' + cell(fold1) + '<span class="op">doblada y perforada</span>' + cell(fold2) + '</div>',
+    options: [paper([[15, 20, true], [85, 20, true], [15, 80, false], [85, 80, false]]), paper([[15, 20, true], [85, 20, true], [15, 80, true], [85, 80, true]]), paper([[15, 20, true], [85, 20, true], [15, 80, false]]), paper([[15, 20, true], [85, 20, true]]), paper([[15, 20, false], [85, 20, false], [15, 80, true], [85, 80, true]])], optHtml: true, answer: 0,
+    explanation: 'Al desdoblar, el agujero se refleja respecto de cada pliegue: aparecen 4 agujeros, uno en cada cuadrante. Los reflejados respecto del pliegue horizontal quedan con la punta hacia abajo; los reflejados respecto del pliegue vertical siguen con la punta hacia arriba.' });
+
+  /* A16: matriz de reflexiones (poliominós) */
+  const P1 = [[0, 0], [1, 0], [2, 0], [2, 1]], P2 = [[0, 1], [0, 2], [1, 1], [2, 1]], P3 = F;
+  const rows16 = [P1, P2, P3].map(p => [p, hmir(p), vmir(hmir(p))]);
+  add({ area: 'abstracto', stem: 'Elija la figura que completa la matriz.',
+    stimulus: matrixStim([].concat(rows16[0].map(omino), rows16[1].map(omino), [omino(rows16[2][0]), omino(rows16[2][1]), null])),
+    options: [omino(rot180(P3)), omino(P3), omino(vmir(P3)), omino(rot90(P3)), omino(hmir(P3))], optHtml: true, answer: 0,
+    explanation: 'En cada fila, la segunda figura es el reflejo horizontal (espejo izquierda-derecha) de la primera y la tercera es el reflejo vertical (espejo arriba-abajo) de la segunda. Aplicado a la tercera fila resulta la pieza girada 180°.' });
+
+  /* ---------- identificadores ---------- */
+  const cnt = { verbal: 0, numerico: 0, abstracto: 0 }, pre = { verbal: 'V', numerico: 'N', abstracto: 'A' };
+  BANK.forEach(q => { cnt[q.area]++; q.id = pre[q.area] + String(cnt[q.area]).padStart(2, '0'); });
+
+  root.BANK = BANK;
+  root.BANK_TOOLS = { rot90, hmir, vmir, rot180, okey, F, F1, F2, F3, ODD, U, uni, MA, a8: DICE };
+  if (typeof module !== 'undefined') module.exports = { BANK, tools: root.BANK_TOOLS };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function(){
+'use strict';
+var BANK=window.BANK;
+var AREAS={
+  verbal:{name:'Razonamiento Verbal',color:'var(--verbal)',desc:'Analogías, sinónimos y antónimos, oraciones incompletas, plan de redacción y comprensión de textos.'},
+  abstracto:{name:'Razonamiento Abstracto',color:'var(--abstracto)',desc:'Series y matrices de figuras, analogías gráficas, giros, reflejos, plegado de papel y figuras intrusas.'},
+  numerico:{name:'Razonamiento Numérico',color:'var(--numerico)',desc:'Series, porcentajes, proporciones, edades, probabilidad, conteo y problemas de la vida cotidiana.'}
+};
+var AREA_KEYS=['verbal','abstracto','numerico'];
+var PER_ATTEMPT=5, MINUTES=10, STORE='simulador-admision-v1';
+var LETTERS='ABCDE';
+function $(s){return document.querySelector(s);}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function pad(n){return n<10?'0'+n:''+n;}
+
+/* ---- almacenamiento ligero (puede fallar) ---- */
+var mem={attempts:[],last:[]};
+function load(){try{var raw=localStorage.getItem(STORE);if(raw){var d=JSON.parse(raw);if(d&&d.attempts)mem=d;}}catch(e){}}
+function save(){try{localStorage.setItem(STORE,JSON.stringify(mem));}catch(e){}}
+
+/* ---- selección aleatoria: 1 por área + 2 libres, evitando el intento anterior ---- */
+function pickQuestions(){
+  var recent=mem.last||[];
+  var fresh=BANK.filter(function(q){return recent.indexOf(q.id)<0;});
+  var chosen=[];
+  AREA_KEYS.forEach(function(a){
+    var pool=fresh.filter(function(q){return q.area===a;});
+    chosen.push(shuffle(pool)[0]);
+  });
+  var rest=fresh.filter(function(q){return chosen.indexOf(q)<0;});
+  shuffle(rest).slice(0,PER_ATTEMPT-chosen.length).forEach(function(q){chosen.push(q);});
+  return shuffle(chosen);
+}
+
+var S=null, timerId=null;
+
+function show(id){['s-start','s-exam','s-result'].forEach(function(s){$('#'+s).classList.toggle('hidden',s!==id);});try{window.scrollTo(0,0);}catch(e){}}
+
+/* ---- inicio ---- */
+function renderStart(){
+  var counts={};BANK.forEach(function(q){counts[q.area]=(counts[q.area]||0)+1;});
+  $('#areas').innerHTML=AREA_KEYS.map(function(a){
+    return '<div class="area" style="--c:'+AREAS[a].color+'"><h3>'+AREAS[a].name+'</h3><p><span class="n">'+counts[a]+' preguntas</span> en el banco. '+AREAS[a].desc+'</p></div>';
+  }).join('');
+  var h=$('#hist');
+  if(mem.attempts.length){
+    var rows=mem.attempts.slice(-8).reverse().map(function(a){
+      return '<tr><td>Intento '+a.n+'</td><td>'+a.date+'</td><td><b>'+a.score+' / '+a.total+'</b></td><td>'+a.score*200+' / 1000</td></tr>';
+    }).join('');
+    var best=Math.max.apply(null,mem.attempts.map(function(a){return a.score;}));
+    h.innerHTML='<h2>Tus intentos · mejor resultado '+best+' / 5</h2><div class="hist-wrap"><table><thead><tr><th>Intento</th><th>Fecha</th><th>Aciertos</th><th>Puntaje referencial</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    h.classList.remove('hidden');
+  }
+}
+
+/* ---- examen ---- */
+function startAttempt(){
+  var qs=pickQuestions().map(function(q){
+    return {q:q,order:q.keepOrder?[0,1,2,3,4]:shuffle([0,1,2,3,4]),sel:null};
+  });
+  var timed=!$('#chk-notime').checked;
+  S={n:mem.attempts.length+1,items:qs,idx:0,timed:timed,endAt:timed?Date.now()+MINUTES*60000:0,done:false};
+  show('s-exam');
+  $('#att').textContent='Intento '+S.n;
+  $('#timer').classList.toggle('hidden',!timed);
+  clearInterval(timerId);
+  if(timed){tick();timerId=setInterval(tick,250);}
+  renderQ();
+}
+function tick(){
+  if(!S||S.done)return;
+  var left=Math.max(0,Math.ceil((S.endAt-Date.now())/1000));
+  var el=$('#timer');el.textContent=pad(Math.floor(left/60))+':'+pad(left%60);
+  el.classList.toggle('low',left<=120&&left>60);el.classList.toggle('crit',left<=60);
+  if(left<=0)finish();
+}
+function optionsHTML(it,mode){
+  var q=it.q,fig=!!q.optHtml;
+  return '<div class="opts '+(fig?'opts-fig':'opts-txt')+'" role="'+(mode==='play'?'radiogroup':'list')+'" aria-label="Alternativas">'+it.order.map(function(oi,pos){
+    var cls='opt';
+    if(mode==='review'){if(oi===q.answer)cls+=' correct';else if(it.sel===oi)cls+=' wrong';}
+    else if(it.sel===oi)cls+=' sel';
+    return '<button type="button" class="'+cls+'" '+(mode==='play'?'role="radio" aria-checked="'+(it.sel===oi)+'" data-oi="'+oi+'"':'disabled')+'><span class="letter">'+LETTERS[pos]+'</span><span class="optbody">'+q.options[oi]+'</span></button>';
+  }).join('')+'</div>';
+}
+function questionHTML(it,i,mode,extra){
+  var q=it.q,A=AREAS[q.area];
+  return '<div class="qhead"><span class="tag" style="--c:'+A.color+'">'+A.name+'</span><span class="qnum">Pregunta '+(i+1)+' de '+S.items.length+(extra||'')+'</span></div>'+
+    '<p class="stem">'+q.stem+'</p>'+
+    (q.passage?'<p class="passage">'+q.passage+'</p>':'')+
+    (q.ask?'<p class="ask">'+q.ask+'</p>':'')+
+    (q.stimulus||'')+
+    optionsHTML(it,mode);
+}
+function renderQ(){
+  var it=S.items[S.idx];
+  $('#qcard').innerHTML=questionHTML(it,S.idx,'play');
+  $('#sheet').innerHTML='<span class="lbl">Hoja de respuestas</span>'+S.items.map(function(x,i){
+    return '<button type="button" class="bubble'+(x.sel!==null?' done':'')+(i===S.idx?' cur':'')+'" data-go="'+i+'" aria-label="Ir a la pregunta '+(i+1)+(x.sel!==null?' (respondida)':'')+'"'+(i===S.idx?' aria-current="true"':'')+'>'+(i+1)+'</button>';
+  }).join('');
+  $('#btn-prev').disabled=S.idx===0;
+  var last=S.idx===S.items.length-1;
+  $('#btn-next').textContent=last?'Finalizar intento':'Siguiente';
+}
+function select(oi){
+  if(!S||S.done)return;
+  var it=S.items[S.idx];it.sel=(it.sel===oi?null:oi);
+  renderQ();
+}
+function go(i){if(i<0||i>=S.items.length)return;S.idx=i;renderQ();try{window.scrollTo(0,0);}catch(e){}}
+function next(){
+  if(S.idx<S.items.length-1){go(S.idx+1);return;}
+  var un=S.items.filter(function(x){return x.sel===null;}).length;
+  if(un>0){
+    $('#c-text').textContent='Te falta responder '+un+(un===1?' pregunta.':' preguntas.')+' Las preguntas sin respuesta cuentan como incorrectas.';
+  }else{
+    $('#c-text').textContent='Ya respondiste las 5 preguntas. Después podrás ver la explicación de cada una.';
+  }
+  $('#confirm').classList.remove('hidden');
+  $('#c-yes').focus();
+}
+
+/* ---- resultado ---- */
+function finish(){
+  if(!S||S.done)return;
+  S.done=true;clearInterval(timerId);
+  $('#confirm').classList.add('hidden');
+  var score=0,per={};
+  S.items.forEach(function(it){
+    var ok=it.sel===it.q.answer;if(ok)score++;
+    var p=per[it.q.area]||(per[it.q.area]={ok:0,n:0});p.n++;if(ok)p.ok++;
+  });
+  var d=new Date();
+  var dateTxt=d.getDate()+' '+['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  mem.attempts.push({n:S.n,score:score,total:S.items.length,date:dateTxt});
+  mem.attempts=mem.attempts.slice(-30);
+  mem.last=S.items.map(function(x){return x.q.id;});
+  save();
+  var lvl=score===5?'Excelente':score===4?'Muy bueno':score===3?'Aceptable':score===2?'En desarrollo':'Necesita refuerzo';
+  var msg=score===5?'Sin errores. Prueba otro intento para ver ejercicios distintos.':score>=3?'Buen desempeño. Revisa las explicaciones de los errores antes del siguiente intento.':'Lee con calma las explicaciones: cada una muestra el método para resolver ese tipo de ejercicio.';
+  var C=2*Math.PI*54,off=C*(1-score/S.items.length);
+  var bars=AREA_KEYS.filter(function(a){return per[a];}).map(function(a){
+    var p=per[a];
+    return '<div class="bar" style="--c:'+AREAS[a].color+'"><span>'+AREAS[a].name+'</span><div class="track"><div class="fill" style="width:'+(100*p.ok/p.n)+'%"></div></div><span class="v">'+p.ok+'/'+p.n+'</span></div>';
+  }).join('');
+  var rev=S.items.map(function(it,i){
+    var ok=it.sel===it.q.answer;
+    var pill=it.sel===null?'<span class="pill na">Sin responder</span>':ok?'<span class="pill ok">Correcta</span>':'<span class="pill ko">Incorrecta</span>';
+    var pos=it.order.indexOf(it.q.answer);
+    return '<article class="rev">'+questionHTML(it,i,'review',pill)+'<div class="expl"><b>Respuesta correcta: '+LETTERS[pos]+'.</b> '+it.q.explanation+'</div></article>';
+  }).join('');
+  $('#s-result').innerHTML=
+    '<section class="card"><div class="score-row"><div class="ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" fill="none" stroke="var(--line)" stroke-width="12"/><circle cx="60" cy="60" r="54" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg><div class="t"><span>'+score+' / '+S.items.length+'<small>aciertos</small></span></div></div>'+
+    '<div><h2>'+lvl+'</h2><p>'+msg+'</p><p>Puntaje referencial: <b>'+score*200+' / 1000</b>'+(S.timed?'':' · intento sin límite de tiempo')+'</p></div></div>'+
+    '<div class="bars">'+bars+'</div>'+
+    '<div class="res-actions"><button class="btn primary" type="button" id="btn-again">Nuevo intento con otros ejercicios</button><button class="btn" type="button" id="btn-home">Volver al inicio</button></div></section>'+
+    '<section class="review"><h2>Revisión del intento '+S.n+'</h2>'+rev+'</section>';
+  show('s-result');
+}
+
+/* ---- eventos ---- */
+$('#btn-start').addEventListener('click',startAttempt);
+$('#btn-prev').addEventListener('click',function(){go(S.idx-1);});
+$('#btn-next').addEventListener('click',next);
+$('#c-no').addEventListener('click',function(){$('#confirm').classList.add('hidden');});
+$('#c-yes').addEventListener('click',finish);
+$('#qcard').addEventListener('click',function(e){var b=e.target.closest('.opt');if(b&&b.dataset.oi!==undefined)select(+b.dataset.oi);});
+$('#sheet').addEventListener('click',function(e){var b=e.target.closest('.bubble');if(b)go(+b.dataset.go);});
+$('#s-result').addEventListener('click',function(e){
+  if(e.target.id==='btn-again')startAttempt();
+  if(e.target.id==='btn-home'){renderStart();show('s-start');}
+});
+document.addEventListener('keydown',function(e){
+  if(!S||S.done||$('#s-exam').classList.contains('hidden')||!$('#confirm').classList.contains('hidden'))return;
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  var k=e.key.toUpperCase(),p=LETTERS.indexOf(k);
+  if(k.length===1&&p>=0){select(S.items[S.idx].order[p]);e.preventDefault();}
+  else if(e.key==='ArrowRight'&&S.idx<S.items.length-1){go(S.idx+1);}
+  else if(e.key==='ArrowLeft'&&S.idx>0){go(S.idx-1);}
+});
+
+load();renderStart();
+})();
+</script>
+</body>
+</html>
